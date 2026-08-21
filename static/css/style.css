@@ -1,0 +1,481 @@
+/* =============================================
+ * Base Styles
+ * ============================================= */
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+}
+
+/* =============================================
+ * Navbar Styles
+ * ============================================= */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #2e7d32 0%, #4caf50 100%);
+  padding: 0 24px;
+  margin: 8px;
+  height: 64px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 16px 16px 16px 16px;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.logo-area span {
+  font-size: 20px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2e7d32;
+  font-size: 20px;
+}
+
+.icons-area {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.08);
+}
+
+/* =============================================
+ * Container Styles
+ * ============================================= */
+
+.container {
+  background: #ffffff;
+  padding: 2rem;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-width: 1000px;
+  width: 85%;
+}
+
+/* =============================================
+ * Field Group Styles
+ * ============================================= */
+
+.fieldGroup {
+  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+#csvFileInput {
+  display: none;
+}
+
+#csvFileInputLabel {
+  padding: 10px;
+  cursor: pointer;
+  color: #334155;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #f1f5f9;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+#csvFileInputLabel:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+  background-color: #e2e8f0;
+}
+
+#csvFileSelected {
+  padding: 10px;
+  color: #334155;
+  font-weight: 500;
+  display: flex;
+  border-radius: 6px;
+  border: 2px dotted #cbd5e1;
+  background-color: #f1f5f9;
+  align-items: center;
+  gap: 10px;
+}
+
+#fileName {
+  margin: 0;
+  flex-grow: 1;
+  font-size: 0.9rem;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =============================================
+ * Button Styles
+ * ============================================= */
+
+.primary-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  margin: 10px 0;
+  border: none;
+  border-radius: 4px;
+  background-color: #0066cc;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background-color: #0052a3;
+}
+
+#btnUpload {
+  display: none;
+}
+
+#btnReset {
+  display: none;
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  color: #ff0000;
+  border: 1px solid #ff0000;
+  background-color: #fee2e2;
+  font-weight: 600;
+  border-radius: 30%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#btnReset:hover {
+  background-color: #ffb8b8;
+}
+
+#btnReset:active {
+  background-color: #ff8a8a;
+}
+
+/* =============================================
+ * Output Box Styles
+ * ============================================= */
+
+#outputArea {
+  display: none;
+  padding: 1rem;
+  background: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-height: 80px;
+}
+
+/* =============================================
+ * Data Table
+ * ============================================= */
+
+.data-table-vertical {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 5px;
+  font-family: Arial, sans-serif;
+}
+
+.data-table-vertical td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.data-table-vertical .field-name {
+  background-color: #4caf10;
+  color: white;
+  font-weight: bold;
+  width: 30%;
+  /* Larghezza della colonna dei nomi */
+}
+
+.data-table-vertical .field-value {
+  background-color: #f9f9f9;
+  width: 70%;
+}
+
+/* Alternanza righe per i valori */
+.data-table-vertical tbody tr:nth-child(even) .field-value {
+  background-color: #f1f1f1;
+}
+
+/* Contenitore di un singolo record */
+.record-container {
+  margin-bottom: 20px;
+}
+
+.record-container h4 {
+  margin: 0 0 5px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.record-separator {
+  border: 0;
+  border-top: 1px dashed #ccc;
+  margin: 20px 0;
+}
+
+/* =============================================
+ * Error Table
+ * ============================================= */
+
+.error-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  background-color: #f2f2f2;
+}
+
+.error-table th {
+  background-color: #ddd;
+  border: 1px solid #ff8a8a;
+  padding: 8px;
+  text-align: left;
+  font-weight: bold;
+}
+
+.error-table td {
+  border: 1px solid #ff8a8a;
+  padding: 8px;
+  text-align: left;
+}
+
+/* =============================================
+ * Error Box Styles
+ * ============================================= */
+#errorArea {
+  display: none;
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #fee2e2;
+  border: 1px solid #ff8a8a;
+  border-radius: 4px;
+  min-height: 80px;
+}
+
+/* =============================================
+ * Azure Step-by-Step Section & Components
+ * ============================================= */
+.azure-section {
+  margin-top: 32px;
+  padding: 24px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.azure-section-header {
+  margin-bottom: 20px;
+}
+
+.azure-section-header h2 {
+  font-size: 20px;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+#azureAuthDetails {
+  display: none;
+}
+
+/* Step Card / Row */
+.step-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.step-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0066cc;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+.step-info h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1e293b;
+}
+
+.step-info p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.step-action {
+  flex-shrink: 0;
+}
+
+.btn-step {
+  padding: 8px 18px;
+  background-color: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn-step:hover {
+  background-color: #0369a1;
+}
+
+.btn-step:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.step-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  min-width: 110px;
+}
+
+.status-pending {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.status-running {
+  background-color: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.status-success {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.status-error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* Step Details */
+.step-details {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.step-message {
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.5;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.step-message code {
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12.5px;
+  color: #0f172a;
+}

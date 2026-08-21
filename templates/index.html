@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carica e Valida CSV</title>
+  <!-- CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <!-- JS Modules -->
+  <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+
+<body>
+  <!-- Navbar -->
+  <div>{% include 'nav.html' %}</div>
+
+  <!-- Main Content -->
+  <main class="container">
+    <h1>Elaborazione File CSV</h1>
+
+    <!-- CSV File -->
+    <div class="fieldGroup">
+      <!-- Select CSV File -->
+      <label for="csvFileInput" id="csvFileInputLabel">Seleziona un file CSV</label>
+      <input id="csvFileInput" type="file" accept=".csv" />
+      <!-- Selected CSV File -->
+      <div id="csvFileSelected">
+        <p id="fileName">Nessun file selezionato</p>
+        <button id="btnReset" type="button">x</button>
+      </div>
+    </div>
+
+    <!-- Validate Button -->
+    <button id="btnValidate" class="primary-btn" type="button">Valida Dati</button>
+
+    <!-- Output Area -->
+    <div id="outputArea"></div>
+
+    <!-- Error Area -->
+    <div id="errorArea"></div>
+
+    <!-- Upload Button -->
+    <button id="btnUpload" class="primary-btn" type="button">Upload Dati & Avvia Test Azure</button>
+
+    <!-- Azure Step-by-Step Check -->
+    {% include 'azure_status.html' %}
+  </main>
+
+</body>
+
+</html>

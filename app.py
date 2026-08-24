@@ -1,12 +1,14 @@
 import io
+import time
 
 import pandas as pd
 from flask import Flask, jsonify, render_template, request
 from pydantic import ValidationError
 
+import azure_functions
 from models import RITModel, ValidationErrorDetail, ValidationResponse
 from azure_service import AzureKeyVaultService
-from azure_function import azure_check_connection, azure_list_key_vaults
+from azure_functions import AzureFunctions
 
 app = Flask(__name__)
 
@@ -17,6 +19,8 @@ except Exception as e:
     azure_service = None
     print(f"Attenzione: AzureKeyVaultService non inizializzato: {e}")
 
+# Inizializza la classe AzureFunctions passando il servizio
+azure_functions = AzureFunctions(azure_service)
 
 # Visualizzare i campi presenti nel file CSV per vedere ✔️
 # quali colonne sono presenti e se hanno errori         ✔️
@@ -144,42 +148,82 @@ def upload_file():
     Riceve i dati del model RITM già validati in precedenza (formato JSON)
     ed esegue gli step di verifica e configurazione su Azure uno alla volta.
     """
-    steps_results = []
-    
-    # Eventuale payload inviato nel body della richiesta
-    payload = request.get_json(silent=True) or {}
-    resource_group = payload.get("resource_group") if isinstance(payload, dict) else None
-
-    # ========================================================
-    # STEP 1: Autenticazione & Accesso Azure
-    # ========================================================
-    auth_step = azure_check_connection()
-    steps_results.append(auth_step)
-
-    # ========================================================
-    # STEP 2: Verifica lista Key Vault disponibili
-    # ========================================================
-    if auth_step.get("status") == "success":
-        vaults_step = azure_list_key_vaults(resource_group_name=resource_group)
-        steps_results.append(vaults_step)
-    else:
-        steps_results.append({
-            "step": 2,
-            "id": "list_vaults",
-            "name": "Lista Key Vault disponibili",
-            "status": "skipped",
-            "message": "Step saltato: l'autenticazione ad Azure è fallita.",
-            "details": {}
-        })
-
-    has_errors = any(s["status"] == "error" for s in steps_results)
-
-    return jsonify({
-        "success": not has_errors,
-        "message": "Tutti gli step sono stati eseguiti con successo." if not has_errors else "Errore durante l'esecuzione degli step.",
-        "steps": steps_results
-    }), 200 if not has_errors else 400
-
+    try:
+        data = request.get_json()
+        
+        # ==========================================
+        # STEP 1: Parsing immediato in RITModel
+        # ==========================================
+        print("\n=== INIZIO STEP 1: Parsing in RITModel ===")
+        
+        # Converti immediatamente i dict in oggetti RITModel
+        ritm_models = [RITModel(**item) for item in data]
+        
+        print(f"✓ Parsing completato con successo")
+        print(f"  Numero di elementi: {len(ritm_models)}")
+        
+        # Ora puoi accedere ai campi direttamente come attributi
+        if ritm_models:
+            first_rit = ritm_models[0]
+            print(f"  Primo elemento:")
+            print(f"    - Acronimo: {first_rit.acronimo}")
+            print(f"    - Resource Group: {first_rit.resource_group}")
+            print(f"    - Key Vault: {first_rit.keyvault_name}")
+            print(f"    - Ambiente: {first_rit.ambiente}")
+        
+        print("=== FINE STEP 1 ===\n")
+        
+        # Pausa di 5 secondi
+        print("⏳ Attesa 5 secondi prima del prossimo step...")
+        time.sleep(5)
+        
+        # ==========================================
+        # STEP 2: Verifica autenticazione Azure
+        # ==========================================
+        print("\n=== INIZIO STEP 2: Verifica Autenticazione Azure ===")
+        connection_status = azure_functions.check_azure_authentication()
+        print(f"✓ Autenticazione verificata con successo")
+        print(f"  Subscription ID: {connection_status.get('subscription_id')}")
+        print(f"  Tenant ID: {connection_status.get('tenant_id')}")
+        print(f"  Credential Type: {connection_status.get('credential_type')}")
+        print("=== FINE STEP 2 ===\n")
+        
+        # ==========================================
+        # STEP 3: Esempio di utilizzo dei dati RITModel
+        # ==========================================
+        print("\n=== INIZIO STEP 3: Elaborazione dati RITModel ===")
+        for i, ritm in enumerate(ritm_models, 1):
+            print(f"  Elemento {i}:")
+            print(f"    - Key Vault: {ritm.keyvault_name}")
+            print(f"    - Resource Group: {ritm.resource_group}")
+            print(f"    - Region: {ritm.region}")
+        print("=== FINE STEP 3 ===\n")
+        
+        # ==========================================
+        # Risposta finale al frontend
+        # ==========================================
+        return jsonify({
+            "status": "success",
+            "message": f"Check completati. {len(ritm_models)} elementi processati.",
+            "details": {
+                "subscription_id": connection_status["subscription_id"],
+                "tenant_id": connection_status["tenant_id"],
+                "credential_type": connection_status["credential_type"],
+                "processed_items": len(ritm_models)
+            }
+        }), 200
+        
+    except (ValueError, ValidationError) as e:
+        print(f"❌ Errore di validazione dati: {str(e)}")
+        return jsonify({"error": "Errore di validazione dati", "details": str(e)}), 400
+        
+    except ConnectionError as e:
+        print(f"❌ Errore di connessione Azure: {str(e)}")
+        return jsonify({"error": "Errore di connessione Azure", "details": str(e)}), 500
+        
+    except Exception as e:
+        print(f"❌ Errore imprevisto: {str(e)}")
+        return jsonify({"error": f"Errore imprevisto: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

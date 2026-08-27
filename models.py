@@ -8,9 +8,9 @@ class RITModel(BaseModel):
     richiedente: str
     capo_ufficio: str
     capo_servizio: str
-    po_riferimento: int
+    po_riferimento: str
     acronimo: str
-    ambiente: Literal["Test", "Produzione"]
+    ambiente: Literal["TEST", "PRODUZIONE"]
     subscription: Literal["ISP_PROD_KEYVAULT_SEC", "ISP_SYSTEM_KEYVAULT_SEC"]
     resource_group: str
     keyvault_name: str
@@ -39,8 +39,7 @@ class RITModel(BaseModel):
         return normalized
 
 class ValidationErrorDetail(BaseModel):
-    row: int
-    errors: list[ErrorDetails]
+    errors: list[dict]
 
 class ValidationResponse(BaseModel):
     valid: bool

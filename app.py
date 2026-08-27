@@ -1,7 +1,5 @@
-import io
-import time
+import openpyxl
 
-import pandas as pd
 from flask import Flask, jsonify, render_template, request
 from pydantic import ValidationError
 
@@ -22,33 +20,43 @@ except Exception as e:
 # Inizializza la classe AzureFunctions passando il servizio
 azure_functions = AzureFunctions(azure_service)
 
-def validate_csv_data(df):
+def validate_file_data(file):
     """
-    Funzione di supporto per convalidare i dati contenuti nel DataFrame.
-    Restituisce una lista di stringhe con gli errori trovati.
+    Funzione di supporto per convalidare i dati contenuti nel file Excel.
     """
-    # Validazione riga per riga
-    records = df.to_dict(orient="records")
     valid_rows = []
     invalid_rows = []
 
-    for index, row in enumerate(records, start=2):
-      try:
-        model_instance = RITModel(**row)
-        valid_rows.append(model_instance)
-      except ValidationError as e:
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb["Azure KeyVault"]
+
+        # Estrae i valori verticali (D5:D15)
+        valori = [cell[0].value for cell in ws["D5:D15"]]
+
+        chiavi = list(RITModel.model_fields.keys())
+        dati_dict = dict(zip(chiavi, valori))
+
+        rit_instance = RITModel(**dati_dict)
+        valid_rows.append(rit_instance)
+
+    except ValidationError as e:
         invalid_rows.append(
-          ValidationErrorDetail(
-            row=index,
-            errors=e.errors()
-          )
+            ValidationErrorDetail(
+                errors=e.errors()
+            )
         )
+    except Exception as e:
+        # Cattura eventuali altri errori (es. foglio mancante, file corrotto)
+        return jsonify({
+            "valid": False,
+            "message": f"Errore durante la lettura del file: {str(e)}",
+            "data": [],
+            "errors": []
+        }), 400
 
-    # Costruzione della risposta finale
-    all_valid = len(invalid_rows) == 0
-
-    if all_valid:
-        # SUCCESSO: tutte le righe sono valide
+    # Verifica lo stato basandosi sugli errori collezionati
+    if not invalid_rows and valid_rows:
         response = ValidationResponse(
             valid=True,
             message=f"✓ Validazione completata: tutte le {len(valid_rows)} righe sono valide.",
@@ -62,7 +70,7 @@ def validate_csv_data(df):
             errors=invalid_rows
         )
         status_code = 400
-        print(f"RESPONSE: {response}")
+
     return jsonify(response.model_dump()), status_code
 
 
@@ -87,29 +95,16 @@ def index():
 
 @app.route("/validate", methods=["POST"])
 def validate_file():
-    """Rotta dedicata solo alla convalida del file CSV."""
-
-    # 1. Controllo presenza e nome del file
+    """Rotta dedicata solo alla convalida del file excel."""
     if "file" not in request.files:
         return error_response("Nessun file inviato.")
 
     file = request.files["file"]
     if file.filename == "":
         return error_response("Nessun file selezionato.")
+    
+    res = validate_file_data(file)
 
-    # Lettura del CSV
-    try:
-        content = file.stream.read().decode("utf-8")
-        df = pd.read_csv(io.StringIO(content), sep=";")
-    except Exception as e:
-        return error_response(f"Errore durante la lettura del file: {e!s}")
-
-    # Controllo che il DataFrame non sia vuoto
-    if df.empty:
-        return error_response("Il file CSV non contiene dati.")
-    # Rimpiazza valori nulli con stringe vuote
-    df = df.where(pd.notnull(df), '')
-    res = validate_csv_data(df)
     return res
 
 
@@ -123,8 +118,7 @@ def upload_file():
         data = request.get_json()
         
         # Converti immediatamente i dict in oggetti RITModel
-        ritm_models = [RITModel(**item) for item in data]
-        ritm_models = ritm_models[0]
+        ritm_models = RITModel(**data[0])
         # ==========================================
         # STEP 1: Verifica autenticazione Azure
         # ==========================================

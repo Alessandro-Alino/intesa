@@ -1,7 +1,7 @@
 import { createDataTable, createErrorTable } from "./mng_table.js";
 
 // Get references to the DOM elements
-const csvFileInput = document.getElementById("csvFileInput");
+const FileInput = document.getElementById("FileInput");
 const btnValidate = document.getElementById("btnValidate");
 const btnUpload = document.getElementById("btnUpload");
 const btnReset = document.getElementById("btnReset");
@@ -14,9 +14,9 @@ const azurePipelineSection = document.getElementById("azurePipelineSection");
 let ritmData = [];
 
 // File Input Event
-csvFileInput.addEventListener("change", () => {
-  if (csvFileInput.files && csvFileInput.files.length > 0) {
-    const file = csvFileInput.files[0];
+FileInput.addEventListener("change", () => {
+  if (FileInput.files && FileInput.files.length > 0) {
+    const file = FileInput.files[0];
     fileName.textContent = file.name;
     btnReset.style.display = "block";
   } else {
@@ -31,7 +31,7 @@ btnReset.addEventListener("click", () => {
 
 // Reset Function
 function resetFileInput() {
-  csvFileInput.value = "";
+  FileInput.value = "";
   fileName.textContent = "Nessun file selezionato";
   btnReset.style.display = "none";
   azurePipelineSection.style.display = "none";
@@ -41,7 +41,7 @@ function resetFileInput() {
 
 // Validation Event
 btnValidate.addEventListener("click", async () => {
-  const file = csvFileInput.files[0];
+  const file = FileInput.files[0];
   if (!file) {
     alert("Seleziona un file!");
     return;
@@ -56,6 +56,7 @@ btnValidate.addEventListener("click", async () => {
       body: formData,
     });
     const result = await response.json();
+    console.log(result);
 
     if (result.valid) {
       // Crea la tabella con i Dati Validati

@@ -109,11 +109,11 @@ body {
   flex-direction: column;
 }
 
-#csvFileInput {
+#FileInput {
   display: none;
 }
 
-#csvFileInputLabel {
+#FileInputLabel {
   padding: 10px;
   cursor: pointer;
   color: #334155;
@@ -125,7 +125,7 @@ body {
   transition: all 0.3s ease;
 }
 
-#csvFileInputLabel:hover {
+#FileInputLabel:hover {
   color: #0f172a;
   border-color: #94a3b8;
   background-color: #e2e8f0;

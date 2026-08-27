@@ -22,35 +22,6 @@ except Exception as e:
 # Inizializza la classe AzureFunctions passando il servizio
 azure_functions = AzureFunctions(azure_service)
 
-# Visualizzare i campi presenti nel file CSV per vedere ✔️
-# quali colonne sono presenti e se hanno errori         ✔️
-#
-# Aggiungere controlli sui campi delle colonne          Da fare
-#
-# Aggiungere Alert di Conferma                          Da fare
-# Aggiungere chiamate API verso Azure                   Da fare ❕
-#
-#
-# Aggiungere scelta del separatore per il file CSV
-# Conversione di .xlsx e .csv con separatore ","
-# SEMPRE in .csv con separatore ";"
-# Sitemazione UI                                        Da fare
-
-# Colonne attese e regole di convalida d'esempio
-# REQUIRED_COLUMNS = [
-#    "richiedente",
-#    "capo_ufficio",
-#    "capo_servizio",
-#    "po_riferimento",
-#    "acronimo",
-#    "ambiente",
-#    "subscription",
-#    "resource_group",
-#    "keyvault_name",
-#    "region",
-#    "servizio",
-#]
-
 def validate_csv_data(df):
     """
     Funzione di supporto per convalidare i dati contenuti nel DataFrame.
@@ -151,52 +122,38 @@ def upload_file():
     try:
         data = request.get_json()
         
-        # ==========================================
-        # STEP 1: Parsing immediato in RITModel
-        # ==========================================
-        print("\n=== INIZIO STEP 1: Parsing in RITModel ===")
-        
         # Converti immediatamente i dict in oggetti RITModel
         ritm_models = [RITModel(**item) for item in data]
-        
-        print(f"✓ Parsing completato con successo")
-        print(f"  Numero di elementi: {len(ritm_models)}")
-        
-        # Ora puoi accedere ai campi direttamente come attributi
-        if ritm_models:
-            first_rit = ritm_models[0]
-            print(f"  Primo elemento:")
-            print(f"    - Acronimo: {first_rit.acronimo}")
-            print(f"    - Resource Group: {first_rit.resource_group}")
-            print(f"    - Key Vault: {first_rit.keyvault_name}")
-            print(f"    - Ambiente: {first_rit.ambiente}")
-        
-        print("=== FINE STEP 1 ===\n")
-        
-        # Pausa di 5 secondi
-        print("⏳ Attesa 5 secondi prima del prossimo step...")
-        time.sleep(5)
-        
+        ritm_models = ritm_models[0]
         # ==========================================
-        # STEP 2: Verifica autenticazione Azure
+        # STEP 1: Verifica autenticazione Azure
         # ==========================================
-        print("\n=== INIZIO STEP 2: Verifica Autenticazione Azure ===")
+        print("\n=== INIZIO STEP 1: Verifica Autenticazione Azure ===")
         connection_status = azure_functions.check_azure_authentication()
         print(f"✓ Autenticazione verificata con successo")
         print(f"  Subscription ID: {connection_status.get('subscription_id')}")
         print(f"  Tenant ID: {connection_status.get('tenant_id')}")
         print(f"  Credential Type: {connection_status.get('credential_type')}")
+        print("=== FINE STEP 1 ===\n")
+        
+        # ==========================================
+        # STEP 2: Esempio di utilizzo dei dati RITModel
+        # ==========================================
+        print("\n=== INIZIO STEP 2: Elaborazione dati RITModel ===")
+        #PRINT
+        print(f"Key Vault: {ritm_models.keyvault_name}")
+        print(f"Resource Group: {ritm_models.resource_group}")
+        print(f"Region: {ritm_models.region}")
         print("=== FINE STEP 2 ===\n")
         
         # ==========================================
         # STEP 3: Esempio di utilizzo dei dati RITModel
         # ==========================================
-        print("\n=== INIZIO STEP 3: Elaborazione dati RITModel ===")
-        for i, ritm in enumerate(ritm_models, 1):
-            print(f"  Elemento {i}:")
-            print(f"    - Key Vault: {ritm.keyvault_name}")
-            print(f"    - Resource Group: {ritm.resource_group}")
-            print(f"    - Region: {ritm.region}")
+        print("\n=== INIZIO STEP 3: Stampa lista dei Resource Group ===")
+        #PRINT
+        print(f"Check se il resource group esiste: {ritm_models.resource_group}")
+        rs_exist = azure_service.check_resource_group(resource_group_name=ritm_models.resource_group)
+        print(f"Esito = {rs_exist}")
         print("=== FINE STEP 3 ===\n")
         
         # ==========================================

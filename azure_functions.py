@@ -26,3 +26,13 @@ class AzureFunctions:
             raise ConnectionError("Autenticazione Azure fallita o token non valido.")
             
         return status
+    
+    # ==========================================
+    # Controllo Esistenza Resource Group
+    # ==========================================
+    def check_single_resource_group(self, resource_group: str):
+        """ Controlla che esiste il resource group passato dalla RITM """
+        return self.azure_service.check_resource_group(resource_group_name=resource_group)
+         
+        
+        

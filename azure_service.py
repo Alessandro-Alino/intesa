@@ -1,10 +1,11 @@
 import os
-import logging
 from typing import Optional, List
 from dotenv import load_dotenv
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient, KeyVaultSecret
 from azure.mgmt.keyvault import KeyVaultManagementClient
+from azure.mgmt.resource.resources import ResourceManagementClient
+
 from azure.mgmt.keyvault.models import (
     Sku,
     SkuName,
@@ -18,18 +19,16 @@ load_dotenv()
 class AzureKeyVaultService:
     def __init__(
         self,
-        vault_url: Optional[str] = None,
         subscription_id: Optional[str] = None,
         tenant_id: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
     ):
-        self.vault_url = vault_url or os.getenv("AZURE_KEYVAULT_URL")
         self.subscription_id = subscription_id or os.getenv("AZURE_SUBSCRIPTION_ID")
         self.tenant_id = tenant_id or os.getenv("AZURE_TENANT_ID")
         client_id = client_id or os.getenv("AZURE_CLIENT_ID")
         client_secret = client_secret or os.getenv("AZURE_CLIENT_SECRET")
-        
+                
         # ========================================
         # Configurazione Credenziali 
         # ========================================
@@ -42,14 +41,17 @@ class AzureKeyVaultService:
         else:
             self.credential = DefaultAzureCredential()
         
-        # Client per i Secret
-        if self.vault_url:
-            self.secret_client = SecretClient(
-                vault_url=self.vault_url, credential=self.credential
+        """# Client per i Resource Group   
+        if self.resource_group_client:
+            self.resource_group_client = ResourceManagementClient(
+                credential = self.credential,
+                subscription_id=self.subscription_id,
             )
         else:
-            self.secret_client = None
-            print("AZURE_KEYVAULT_URL non impostato: SecretClient non disponibile.")
+            self.resource_group_client = None
+            print("AZURE_resource_group_client non impostato: ResourceGroup non disponibile.")"""
+        
+                
         # Client per Key Vault
         if self.subscription_id:
             self.mgmt_client = KeyVaultManagementClient(
@@ -59,6 +61,14 @@ class AzureKeyVaultService:
             self.mgmt_client = None
             print("AZURE_SUBSCRIPTION_ID non impostato: KeyVaultManagementClient non disponibile.")
 
+    """# Client per i Secret        
+            if self.vault_url:
+                self.secret_client = SecretClient(
+                    vault_url=self.vault_url, credential=self.credential
+                )
+            else:
+                self.secret_client = None
+                print("AZURE_KEYVAULT_URL non impostato: SecretClient non disponibile.")"""
     # ========================================
     # GESTIONE SECRET
     # ========================================
@@ -153,18 +163,24 @@ class AzureKeyVaultService:
         Verifica se il Resource Group è accessibile su Azure.
         Interroga ARM listando le risorse o i vault nel gruppo.
         """
-        if not self.mgmt_client:
-            raise ValueError("KeyVaultManagementClient non configurato (manca subscription_id).")
-        
         try:
-            # Tenta di listare i vault nel ResourceGroup; se il ResourceGroup non esiste, Azure restituisce ResourceGroupNotFound (404)
-            vaults = list(self.mgmt_client.vaults.list_by_resource_group(resource_group_name=resource_group_name))
-            return {
-                "exists": True,
-                "resource_group": resource_group_name,
-                "vaults_count": len(vaults),
-                "vault_names": [v.name for v in vaults]
-            }
+            # Client per i Resource Group   
+            resource_group_client = ResourceManagementClient(
+                        credential = self.credential,
+                        subscription_id=self.subscription_id,
+                    )
+            print(f"[AZURE_SERVICE_RS] RS: {resource_group_client}")
+            
+            rg_exist = resource_group_client.resource_groups.check_existence(resource_group_name=resource_group_name)
+            print(f"[AZURE_SERVICE_RS_EXIST] RS_EXIST: {rg_exist}")
+            
+            if rg_exist:
+                # Resorce Group Esiste
+                return True
+            else:
+                # Crea Resorce Group
+                return False
+            
         except Exception as e:
             err_msg = str(e)
             if "ResourceGroupNotFound" in err_msg or "not found" in err_msg.lower() or "404" in err_msg:

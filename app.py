@@ -147,6 +147,13 @@ def upload_file():
         #PRINT
         print(f"Check se il resource group esiste: {ritm_models.resource_group}")
         rs_exist = azure_service.check_resource_group(resource_group_name=ritm_models.resource_group)
+        if not rs_exist:
+            if azure_service.create_resource_group(resource_group_name=ritm_models.resource_group):
+                    azure_service.create_or_update_vault()
+            else:
+                if not azure_service.check_vault_exists(): 
+                    azure_service.create_or_update_vault()
+                
         print(f"Esito = {rs_exist}")
         print("=== FINE STEP 3 ===\n")
         
@@ -155,12 +162,11 @@ def upload_file():
         # ==========================================
         return jsonify({
             "status": "success",
-            "message": f"Check completati. {len(ritm_models)} elementi processati.",
+            "message": f"Check completati. File processato.",
             "details": {
                 "subscription_id": connection_status["subscription_id"],
                 "tenant_id": connection_status["tenant_id"],
-                "credential_type": connection_status["credential_type"],
-                "processed_items": len(ritm_models)
+                "credential_type": connection_status["credential_type"]
             }
         }), 200
         

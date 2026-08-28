@@ -11,7 +11,8 @@ class RITModel(BaseModel):
     po_riferimento: str
     acronimo: str
     ambiente: Literal["TEST", "PRODUZIONE"]
-    subscription: Literal["ISP_PROD_KEYVAULT_SEC", "ISP_SYSTEM_KEYVAULT_SEC"]
+    #subscription: Literal["ISP_PROD_KEYVAULT_SEC", "ISP_SYSTEM_KEYVAULT_SEC"]
+    subscription: str
     resource_group: str
     keyvault_name: str
     region: Literal["Italy North"]

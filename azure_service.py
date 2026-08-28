@@ -157,7 +157,9 @@ class AzureKeyVaultService:
             "authenticated": bool(token.token),
             "message": "Autenticazione Azure riuscita. Token di accesso ottenuto con successo!"
         }
-
+  # ========================================
+    # GESTIONE RESOURCE GROUP
+    # ========================================
     def check_resource_group(self, resource_group_name: str) -> dict:
         """
         Verifica se il Resource Group è accessibile su Azure.
@@ -169,21 +171,19 @@ class AzureKeyVaultService:
                         credential = self.credential,
                         subscription_id=self.subscription_id,
                     )
-            print(f"[AZURE_SERVICE_RS] RS: {resource_group_client}")
             
-            rg_exist = resource_group_client.resource_groups.check_existence(resource_group_name=resource_group_name)
-            print(f"[AZURE_SERVICE_RS_EXIST] RS_EXIST: {rg_exist}")
-            
+            rg_exist = resource_group_client.resource_groups.get(resource_group_name)
+            # Resorce Group Esiste
             if rg_exist:
-                # Resorce Group Esiste
                 return True
             else:
-                # Crea Resorce Group
                 return False
             
         except Exception as e:
             err_msg = str(e)
             if "ResourceGroupNotFound" in err_msg or "not found" in err_msg.lower() or "404" in err_msg:
+                return False
+            if "AuthorizationFailed" in err_msg or "not found" in err_msg.lower() or "404" in err_msg:
                 return {
                     "exists": False,
                     "resource_group": resource_group_name,
@@ -191,6 +191,23 @@ class AzureKeyVaultService:
                     "details": err_msg
                 }
             raise e
+        
+    def create_resource_group(self, resource_group_name: str) -> dict:
+        """
+        Creazione di un nuovo Resource Group.
+        """
+        try:
+            # Client per i Resource Group   
+            resource_group_client = ResourceManagementClient(
+                        credential = self.credential,
+                        subscription_id= self.subscription_id,
+                    )
+            
+            resource_group_client.resource_groups.create_or_update(resource_group_name=resource_group_name)
+            return True
+        except Exception as e:
+            return e
+            
 
     def check_vault_exists(self, resource_group_name: str, vault_name: str) -> dict:
         """

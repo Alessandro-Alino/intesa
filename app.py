@@ -1,92 +1,12 @@
-import openpyxl
 
 from flask import Flask, jsonify, render_template, request
 from pydantic import ValidationError
 
-import azure_functions
-from models import RITModel, ValidationErrorDetail, ValidationResponse
+from models import RITModel
 from azure_service import AzureKeyVaultService
-from azure_functions import AzureFunctions
+from processing import error_response, validate_file_data
 
 app = Flask(__name__)
-
-# Inizializzazione Azure Key Vault Service
-try:
-    azure_service = AzureKeyVaultService()
-except Exception as e:
-    azure_service = None
-    print(f"Attenzione: AzureKeyVaultService non inizializzato: {e}")
-
-# Inizializza la classe AzureFunctions passando il servizio
-azure_functions = AzureFunctions(azure_service)
-
-def validate_file_data(file):
-    """
-    Funzione di supporto per convalidare i dati contenuti nel file Excel.
-    """
-    valid_rows = []
-    invalid_rows = []
-
-    try:
-        wb = openpyxl.load_workbook(file, data_only=True)
-        ws = wb["Azure KeyVault"]
-
-        # Estrae i valori verticali (D5:D15)
-        valori = [cell[0].value for cell in ws["D5:D15"]]
-
-        chiavi = list(RITModel.model_fields.keys())
-        dati_dict = dict(zip(chiavi, valori))
-
-        rit_instance = RITModel(**dati_dict)
-        valid_rows.append(rit_instance)
-
-    except ValidationError as e:
-        invalid_rows.append(
-            ValidationErrorDetail(
-                errors=e.errors()
-            )
-        )
-    except Exception as e:
-        # Cattura eventuali altri errori (es. foglio mancante, file corrotto)
-        return jsonify({
-            "valid": False,
-            "message": f"Errore durante la lettura del file: {str(e)}",
-            "data": [],
-            "errors": []
-        }), 400
-
-    # Verifica lo stato basandosi sugli errori collezionati
-    if not invalid_rows and valid_rows:
-        response = ValidationResponse(
-            valid=True,
-            message=f"✓ Validazione completata: tutte le {len(valid_rows)} righe sono valide.",
-            data=valid_rows
-        )
-        status_code = 200
-    else:
-        response = ValidationResponse(
-            valid=False,
-            message=f"✗ Validazione completata: {len(valid_rows)} righe valide, {len(invalid_rows)} con errori.",
-            errors=invalid_rows
-        )
-        status_code = 400
-
-    return jsonify(response.model_dump()), status_code
-
-
-def isEmpty(colValue):
-    value: bool = colValue.isnull().all()
-    print(f"isEmpty: {value}\n")
-    return value
-
-# --- Helper per risposte di errore ---
-def error_response(message: str, status: int = 400):
-    resp = ValidationResponse(
-        valid=False,
-        message=message
-    )
-    return jsonify(resp.model_dump()), status
-
 
 @app.route("/", methods=["GET"])
 def index():
@@ -102,10 +22,12 @@ def validate_file():
     file = request.files["file"]
     if file.filename == "":
         return error_response("Nessun file selezionato.")
-    
-    res = validate_file_data(file)
 
-    return res
+    # Controllo estensione
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return error_response("Formato file non valido. Caricare un file .xls")
+    
+    return validate_file_data(file)
 
 
 @app.route("/upload", methods=["POST"])
@@ -116,14 +38,20 @@ def upload_file():
     """
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"error": "Nessun dato JSON ricevuto"}), 400
         
         # Converti immediatamente i dict in oggetti RITModel
         ritm_models = RITModel(**data[0])
+        
+        # Inizializzazione Azure Key Vault Service
+        azure_service = AzureKeyVaultService(subscription_id=ritm_models.subscription)
+        
         # ==========================================
         # STEP 1: Verifica autenticazione Azure
         # ==========================================
         print("\n=== INIZIO STEP 1: Verifica Autenticazione Azure ===")
-        connection_status = azure_functions.check_azure_authentication()
+        connection_status = azure_service.check_connection()
         print(f"✓ Autenticazione verificata con successo")
         print(f"  Subscription ID: {connection_status.get('subscription_id')}")
         print(f"  Tenant ID: {connection_status.get('tenant_id')}")
@@ -144,15 +72,34 @@ def upload_file():
         # STEP 3: Esempio di utilizzo dei dati RITModel
         # ==========================================
         print("\n=== INIZIO STEP 3: Stampa lista dei Resource Group ===")
-        #PRINT
         print(f"Check se il resource group esiste: {ritm_models.resource_group}")
-        rs_exist = azure_service.check_resource_group(resource_group_name=ritm_models.resource_group)
-        if not rs_exist:
-            if azure_service.create_resource_group(resource_group_name=ritm_models.resource_group):
-                    azure_service.create_or_update_vault()
-            else:
-                if not azure_service.check_vault_exists(): 
-                    azure_service.create_or_update_vault()
+
+        # 1. Gestione Resource Group
+        rs_exist = azure_service.check_resource_group(
+            resource_group_name=ritm_models.resource_group
+            )
+        if not rs_exist.get("exists", False):
+            print(f"Creazione Resource Group: {ritm_models.resource_group}...")
+            azure_service.create_resource_group(
+                resource_group_name=ritm_models.resource_group,
+                location=ritm_models.region 
+            )
+        
+        # 2. Gestione Key Vault
+        vault_status = azure_service.check_vault_exists(
+            resource_group_name=ritm_models.resource_group, 
+            vault_name=ritm_models.keyvault_name
+        )
+        
+        if not vault_status.get("exists", False):
+            print(f"Creazione Key Vault: {ritm_models.keyvault_name}...")
+            azure_service.create_or_update_vault(
+                resource_group_name=ritm_models.resource_group,
+                vault_name=ritm_models.keyvault_name,
+                location=ritm_models.region,
+                acronimo=ritm_models.acronimo
+            )
+        azure_service.create_or_update_vault()
                 
         print(f"Esito = {rs_exist}")
         print("=== FINE STEP 3 ===\n")

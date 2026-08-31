@@ -1,42 +1,68 @@
-import csv
+from flask import jsonify
+import openpyxl
+
+from pydantic import ValidationError
+from models import RITModel, ValidationErrorDetail, ValidationResponse
 
 
-def elabora_csv(filepath):
+def validate_file_data(file):
     """
-    Legge il CSV, esegue controlli di base e restituisce un dizionario
-    con i risultati. Qui si possono aggiungere facilmente altre funzioni.
+    Funzione di supporto per convalidare i dati contenuti nel file Excel.
     """
-    risultati = {"righe_totali": 0, "colonne": [], "prime_righe": [], "errori": []}
+    valid_rows = []
+    invalid_rows = []
 
     try:
-        with open(filepath, mode="r", encoding="utf-8") as f:
-            lettore = csv.reader(f)
-            # Leggi l'intestazione (se presente)
-            try:
-                intestazione = next(lettore)
-                risultati["colonne"] = intestazione
-            except StopIteration:
-                risultati["errori"].append("Il file è vuoto.")
-                return risultati
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb["Azure KeyVault"]
 
-            # Conta righe e salva le prime 5 per anteprima
-            righe = list(lettore)
-            risultati["righe_totali"] = len(righe)
-            risultati["prime_righe"] = righe[:5]
+        # Estrae i valori verticali (D5:D15)
+        valori = [cell[0].value for cell in ws["D5:D15"]]
 
-            # Controlli aggiuntivi (esempio: presenza di colonne obbligatorie)
-            if "id" not in intestazione and "nome" not in intestazione:
-                risultati["errori"].append(
-                    "Mancano colonne 'id' o 'nome' (esempio di controllo)."
-                )
+        chiavi = list(RITModel.model_fields.keys())
+        dati_dict = dict(zip(chiavi, valori))
 
-            # Altri controlli personalizzati...
-            # Esempio: controlla che non ci siano righe vuote
-            for i, riga in enumerate(righe, start=2):  # +1 per l'intestazione
-                if all(campo.strip() == "" for campo in riga):
-                    risultati["errori"].append(f"Riga {i} completamente vuota.")
+        rit_instance = RITModel(**dati_dict)
+        valid_rows.append(rit_instance)
 
+    except ValidationError as e:
+        invalid_rows.append(
+            ValidationErrorDetail(
+                errors=e.errors()
+            )
+        )
     except Exception as e:
-        risultati["errori"].append(f"Errore durante la lettura del file: {str(e)}")
+        # Cattura eventuali altri errori (es. foglio mancante, file corrotto)
+        return jsonify({
+            "valid": False,
+            "message": f"Errore durante la lettura del file: {str(e)}",
+            "data": [],
+            "errors": []
+        }), 400
 
-    return risultati
+    # Verifica lo stato basandosi sugli errori collezionati
+    if not invalid_rows and valid_rows:
+        response = ValidationResponse(
+            valid=True,
+            message=f"✓ Validazione completata: tutte le {len(valid_rows)} righe sono valide.",
+            data=valid_rows
+        )
+        status_code = 200
+    else:
+        response = ValidationResponse(
+            valid=False,
+            message=f"✗ Validazione completata: {len(valid_rows)} righe valide, {len(invalid_rows)} con errori.",
+            errors=invalid_rows
+        )
+        status_code = 400
+
+    return jsonify(response.model_dump()), status_code
+
+
+# --- Helper per risposte di errore ---
+def error_response(message: str, status: int = 400):
+    resp = ValidationResponse(
+        valid=False,
+        message=message
+    )
+    return jsonify(resp.model_dump()), status

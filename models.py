@@ -36,7 +36,7 @@ class RITModel(BaseModel):
     @classmethod
     def normalize_subscription(cls, value: str) -> str:
         # Converte in uppercase e sostituisce gli spazi con underscore
-        normalized = value.upper().replace(" ", "_")
+        normalized = value.lower().replace(" ", "_")
         return normalized
 
 class ValidationErrorDetail(BaseModel):

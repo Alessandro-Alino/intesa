@@ -6,6 +6,10 @@ from models import RITModel
 from azure_service import AzureKeyVaultService
 from processing import error_response, validate_file_data
 
+from azure.core.exceptions  import (
+    ResourceExistsError
+)
+
 app = Flask(__name__)
 
 @app.route("/", methods=["GET"])
@@ -91,6 +95,7 @@ def upload_file():
             vault_name=ritm_models.keyvault_name
         )
         
+        
         if not vault_status.get("exists", False):
             print(f"Creazione Key Vault: {ritm_models.keyvault_name}...")
             azure_service.create_or_update_vault(
@@ -99,7 +104,6 @@ def upload_file():
                 location=ritm_models.region,
                 acronimo=ritm_models.acronimo
             )
-        azure_service.create_or_update_vault()
                 
         print(f"Esito = {rs_exist}")
         print("=== FINE STEP 3 ===\n")
@@ -116,7 +120,12 @@ def upload_file():
                 "credential_type": connection_status["credential_type"]
             }
         }), 200
-        
+    
+    except ResourceExistsError as e:
+        if "VaultAlreadyExists" in str(e) or (e.error and e.error.code == "VaultAlreadyExists"):
+            print(f"⚠️ Il nome del vault è già occupato. Dettaglio: {e.message}")
+            return jsonify({"error": "Errore di connessione Azure", "details": str(e)}), 517
+            
     except (ValueError, ValidationError) as e:
         print(f"❌ Errore di validazione dati: {str(e)}")
         return jsonify({"error": "Errore di validazione dati", "details": str(e)}), 400
@@ -128,6 +137,7 @@ def upload_file():
     except Exception as e:
         print(f"❌ Errore imprevisto: {str(e)}")
         return jsonify({"error": f"Errore imprevisto: {str(e)}"}), 500
+    
 
 if __name__ == "__main__":
     app.run(debug=True)

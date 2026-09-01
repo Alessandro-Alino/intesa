@@ -54,7 +54,7 @@ class AzureKeyVaultService:
                 subscription_id=self.subscription_id
                 )
         else:
-            self.kv_mgmt_client = None
+            self.mgmt_client = None
             self.resource_client = None
 
     # ========================================
@@ -65,13 +65,26 @@ class AzureKeyVaultService:
         resource_group_name: str,
         vault_name: str,
         location: str,
-        acronimo: str
+        acronimo: str,
+        servizio:   str
     ) -> Vault:
         """Crea o aggiorna un'istanza di Key Vault in un Resource Group."""
         if not self.mgmt_client:
             raise ValueError("KeyVaultManagementClient o tenant_id non configurati.")
 
-        databrick_id = self.get_databricks_object_id()
+        databrick_params = []
+
+        if servizio == 'Databricks':
+            databrick_id = self.get_databricks_object_id()
+            databrick_params = [
+                   AccessPolicyEntry(
+                       tenant_id=self.tenant_id,
+                       object_id=databrick_id,
+                       permissions=Permissions(
+                           secrets=[SecretPermissions.get, SecretPermissions.list]
+                       ),
+                   )]
+            
         params = VaultCreateOrUpdateParameters(
             location=location,
             properties=VaultProperties(
@@ -86,14 +99,7 @@ class AzureKeyVaultService:
                     bypass="AzureServices",
                     default_action="Deny",
                 ),
-                access_policies=[
-                    AccessPolicyEntry(
-                        tenant_id=self.tenant_id,
-                        object_id=databrick_id,
-                        permissions=Permissions(
-                            secrets=[SecretPermissions.get, SecretPermissions.list]
-                        ),
-                    )],
+                access_policies=databrick_params,
                 ),
             tags={"acronimo":acronimo}
         )
@@ -211,4 +217,3 @@ class AzureKeyVaultService:
         except Exception as e:
             raise ValueError(f"Errore nella chiamata a Microsoft Graph: {str(e)}") from e
             
-

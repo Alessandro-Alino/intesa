@@ -354,6 +354,7 @@ body {
 }
 
 .step-header {
+  margin-top: 10px;
   display: flex;
   align-items: center;
   gap: 16px;

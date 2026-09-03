@@ -17,7 +17,7 @@ export function createDataTable(result, container) {
 
     // Titolo del record
     const title = document.createElement("h4");
-    title.textContent = `Record #${index + 1}`;
+    title.textContent = `Valori RITM`;
     recordContainer.appendChild(title);
 
     // Crea la tabella per questo record

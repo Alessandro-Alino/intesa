@@ -45,8 +45,9 @@ def upload_file():
         if not data:
             return jsonify({"error": "Nessun dato JSON ricevuto"}), 400
         
-        # Converti immediatamente i dict in oggetti RITModel
+             # Converti immediatamente i dict in oggetti RITModel
         ritm_models = RITModel(**data[0])
+        steps = []
         
         # Inizializzazione Azure Key Vault Service
         azure_service = AzureKeyVaultService(subscription_id=ritm_models.subscription)
@@ -61,7 +62,6 @@ def upload_file():
         print(f"  Tenant ID: {connection_status.get('tenant_id')}")
         print(f"  Credential Type: {connection_status.get('credential_type')}")
         print("=== FINE STEP 1 ===\n")
-        
         # ==========================================
         # STEP 2: Esempio di utilizzo dei dati RITModel
         # ==========================================
@@ -88,6 +88,9 @@ def upload_file():
                 resource_group_name=ritm_models.resource_group,
                 location=ritm_models.region 
             )
+            steps.append('Resource Group Creata')
+        else:
+            steps.append('Resource Group Esistente')
         
         # 2. Gestione Key Vault
         vault_status = azure_service.check_vault_exists(
@@ -102,12 +105,15 @@ def upload_file():
                 resource_group_name=ritm_models.resource_group,
                 vault_name=ritm_models.keyvault_name,
                 location=ritm_models.region,
-                acronimo=ritm_models.acronimo
+                acronimo=ritm_models.acronimo,
+                servizio=ritm_models.servizio
             )
+            steps.append('KeyVault Creato')
+        else:
+            steps.append('KeyVault Esistente')
                 
         print(f"Esito = {rs_exist}")
         print("=== FINE STEP 3 ===\n")
-        
         # ==========================================
         # Risposta finale al frontend
         # ==========================================
@@ -117,14 +123,15 @@ def upload_file():
             "details": {
                 "subscription_id": connection_status["subscription_id"],
                 "tenant_id": connection_status["tenant_id"],
-                "credential_type": connection_status["credential_type"]
+                "credential_type": connection_status["credential_type"],
+                "steps" : steps
             }
         }), 200
     
     except ResourceExistsError as e:
         if "VaultAlreadyExists" in str(e) or (e.error and e.error.code == "VaultAlreadyExists"):
             print(f"⚠️ Il nome del vault è già occupato. Dettaglio: {e.message}")
-            return jsonify({"error": "Errore di connessione Azure", "details": str(e)}), 517
+            return jsonify({"error": "Errore di Azure", "details": 'Nome del KeyVault già usato'}), 517
             
     except (ValueError, ValidationError) as e:
         print(f"❌ Errore di validazione dati: {str(e)}")

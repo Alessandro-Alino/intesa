@@ -18,26 +18,27 @@ class RITModel(BaseModel):
     region: Literal["Italy North"]
     servizio: str
 
-    # VALIDATOR PER ACRONIMO
+# VALIDATOR PER ACRONIMO
     @field_validator("acronimo", mode="before")
     @classmethod
     def check_acronimo(cls, value: str) -> str:
-        if len(value) != 5:
+        if value and len(value) != 5:
             raise PydanticCustomError(
                 "acronimo_lunghezza",
-                "L'acronimo deve essere lungo almeno 5 caratteri",
+                "L'acronimo deve essere lungo esattamente 5 caratteri",
                 {"lunghezza": 5, "dati": len(value)},
             )
 
         return value
 
-    # Validator per subscription: uppercase + sostituisce spazi con underscore
+    # VALIDATOR PER SUBSCRIPTION
     @field_validator("subscription", mode="before")
     @classmethod
     def normalize_subscription(cls, value: str) -> str:
-        # Converte in uppercase e sostituisce gli spazi con underscore
-        normalized = value.lower().replace(" ", "_")
-        return normalized
+        if not value:
+            return value
+
+        return value.lower().replace(" ", "_")
 
 class ValidationErrorDetail(BaseModel):
     errors: list[dict]

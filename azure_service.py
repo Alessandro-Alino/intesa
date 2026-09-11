@@ -5,6 +5,7 @@ import requests
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
+from azure.mgmt.subscription import SubscriptionClient
 from azure.core.exceptions import ResourceNotFoundError, HttpResponseError
 
 from azure.mgmt.keyvault.models import (
@@ -30,6 +31,7 @@ class AzureKeyVaultService:
         self.client_id = os.getenv("AZURE_CLIENT_ID")
         self.client_secret = os.getenv("AZURE_CLIENT_SECRET")
         self.databricks_app_id = os.getenv("DATABRICKS_APP_ID")
+        self.group_id_secret = os.getenv("GROUP_SECRET_PERMISSION")
                 
         # ========================================
         # Configurazione Credenziali 
@@ -43,8 +45,11 @@ class AzureKeyVaultService:
         else:
             self.credential = DefaultAzureCredential()
             
-        # Client per Key Vault e ResourceGroup
+        # Client per Subscription, Key Vault e ResourceGroup
         if self.subscription_id:
+            self.sub_client = SubscriptionClient(
+                credential= self.credential
+            )
             self.mgmt_client = KeyVaultManagementClient(
                 credential=self.credential,
                 subscription_id=self.subscription_id
@@ -73,6 +78,8 @@ class AzureKeyVaultService:
             raise ValueError("KeyVaultManagementClient o tenant_id non configurati.")
 
         databrick_params = []
+        gruppo_permission = []
+        secrets_permissions_params = []
 
         if servizio == 'Databricks':
             databrick_id = self.get_databricks_object_id()
@@ -84,31 +91,50 @@ class AzureKeyVaultService:
                            secrets=[SecretPermissions.get, SecretPermissions.list]
                        ),
                    )]
+            secrets_permissions_params.append(databrick_params)
+            #TODO DA AGGIUNGERE SEMPRE NON SOLO SOTTO DATABRICKS
+            gruppo_permission = [
+                   AccessPolicyEntry(
+                       tenant_id=self.tenant_id,
+                       object_id=self.group_id_secret,
+                       permissions=Permissions(
+                           secrets=[SecretPermissions.all]
+                       ),
+                   )]
+            secrets_permissions_params.append(gruppo_permission)
+        
             
-        params = VaultCreateOrUpdateParameters(
-            location=location,
-            properties=VaultProperties(
-                tenant_id=self.tenant_id,
-                sku=Sku(family="A", name=SkuName.standard.name), #TODO ricordare di cambiare in premium
-                enable_soft_delete=True,
-                soft_delete_retention_in_days=90,
-                enable_purge_protection=True,
-                enable_rbac_authorization=False,
-                public_network_access=PublicNetworkAccess.DISABLED,
-                network_acls=NetworkRuleSet(
-                    bypass="AzureServices",
-                    default_action="Deny",
-                ),
-                access_policies=databrick_params,
-                ),
-            tags={"acronimo":acronimo}
-        )
-        poller = self.mgmt_client.vaults.begin_create_or_update(
-            resource_group_name=resource_group_name,
-            vault_name=vault_name,
-            parameters=params,
-        )
-        return poller.result()
+        
+        try:    
+            params = VaultCreateOrUpdateParameters(
+                location=location,
+                properties=VaultProperties(
+                    tenant_id=self.tenant_id,
+                    sku=Sku(family="A", name=SkuName.standard.name), #TODO ricordare di cambiare in premium
+                    enable_soft_delete=True,
+                    soft_delete_retention_in_days=90,
+                    enable_purge_protection=True,
+                    enable_rbac_authorization=False,
+                    public_network_access=PublicNetworkAccess.DISABLED,
+                    network_acls=NetworkRuleSet(
+                        bypass="AzureServices",
+                        default_action="Deny",
+                    ),
+                    access_policies=secrets_permissions_params,
+                    ),
+                tags={"acronimo":acronimo}
+            )
+            poller = self.mgmt_client.vaults.begin_create_or_update(
+                resource_group_name=resource_group_name,
+                vault_name=vault_name,
+                parameters=params,
+            )
+            return poller.result()
+        except HttpResponseError as e:
+            raise ValueError(str(e))
+        
+        
+      
         
         
     def check_vault_exists(self, resource_group_name: str, vault_name: str) -> dict:
@@ -157,6 +183,57 @@ class AzureKeyVaultService:
             "authenticated": bool(token.token),
             "message": "Autenticazione Azure riuscita. Token di accesso ottenuto con successo!"
         }
+        
+    # ========================================
+    # GESTIONE SUBSCRIPTION
+    # ========================================
+    def check_status_subscription(self, subscription :str) -> dict:
+        """ Verifica lo stato della Subscription mandata nella RITM"""
+        try:
+            sub_info = self.sub_client.subscriptions.get(subscription)
+            return sub_info
+        except HttpResponseError as e:
+            return {
+                "exists": False,
+                "subscription": subscription,
+                "error": str(e)
+            }
+            
+    def enable_subscription(self,subscription :str):
+        """ Riattiva la subscription """
+        try:
+                token = self.credential.get_token(
+                "https://management.azure.com/.default"
+            ).token
+
+                url = (
+                f"https://management.azure.com/subscriptions/"
+                f"{subscription}/providers/Microsoft.Subscription/"
+                f"subscriptions/{subscription}/enable"
+                f"?api-version=2021-10-01"
+            )
+
+                headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+
+                response = requests.post(url, headers=headers)
+
+                if not response.ok:
+                    raise Exception(
+                    f"Errore durante l'abilitazione della subscription: "
+                    f"{response.status_code} - {response.text}"
+                    )
+
+                return response.json() if response.content else None
+        except HttpResponseError as e:
+            return {
+                "exists": False,
+                "subscription": subscription,
+                "error": str(e)
+            }
+            
         
     # ========================================
     # GESTIONE RESOURCE GROUP

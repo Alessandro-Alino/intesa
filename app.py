@@ -62,8 +62,26 @@ def upload_file():
         print(f"  Tenant ID: {connection_status.get('tenant_id')}")
         print(f"  Credential Type: {connection_status.get('credential_type')}")
         print("=== FINE STEP 1 ===\n")
+        
         # ==========================================
-        # STEP 2: Esempio di utilizzo dei dati RITModel
+        # STEP 2: Verifica stato subscription
+        # ==========================================
+        print("\n=== INIZIO STEP 2: Verifica stato subscription ===")
+        sub_info = azure_service.check_status_subscription(ritm_models.subscription)
+        print(f"  Subscription INFO: {str(sub_info)}")
+        print(f"  Subscription STATUS: {sub_info.state}")
+        if sub_info.state.lower() == "disabled":
+            operation = azure_service.enable_subscription(ritm_models.subscription)
+            print(f"  Subscription NEW INFO: {str(operation)}")
+            steps.append('Subscription riattivata')
+        if sub_info.state.lower() == "warned":
+            raise ValueError("SubScription in stato Warned")
+        else:
+            steps.append('Subscription già attiva')
+        
+        
+        # ==========================================
+        # STEP 3: Esempio di utilizzo dei dati RITModel
         # ==========================================
         print("\n=== INIZIO STEP 2: Elaborazione dati RITModel ===")
         #PRINT
@@ -73,7 +91,7 @@ def upload_file():
         print("=== FINE STEP 2 ===\n")
         
         # ==========================================
-        # STEP 3: Esempio di utilizzo dei dati RITModel
+        # STEP 4: Esempio di utilizzo dei dati RITModel
         # ==========================================
         print("\n=== INIZIO STEP 3: Stampa lista dei Resource Group ===")
         print(f"Check se il resource group esiste: {ritm_models.resource_group}")

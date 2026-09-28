@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accedi - Autenticazione Microsoft</title>
+  <!-- Font Google Inter per una tipografia moderna -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- MSAL.js Browser Library CDN -->
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 420px;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05), 0 20px 48px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }
+
+    .brand-logo {
+      width: 48px;
+      height: 48px;
+      background: #eef2ff;
+      color: #4f46e5;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .login-card h2 {
+      color: #0f172a;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .login-card p.subtitle {
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+
+    /* Spinner di caricamento */
+    .status-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      margin-bottom: 16px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #status {
+      font-size: 0.875rem;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    /* Stili Pulsanti */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 1px solid transparent;
+    }
+
+    .btn-microsoft {
+      background-color: #2f2f2f;
+      color: #ffffff;
+    }
+
+    .btn-microsoft:hover {
+      background-color: #000000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-dev {
+      background-color: #fff7ed;
+      color: #c2410c;
+      border-color: #ffedd5;
+    }
+
+    .btn-dev:hover {
+      background-color: #ffedd5;
+      color: #9a3412;
+    }
+
+    .footer-text {
+      margin-top: 32px;
+      font-size: 0.775rem;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="login-card">
+    <!-- Icona / Logo applicazione -->
+    <div class="brand-logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+    </div>
+
+    <h2>Portale Azure RITM</h2>
+    <p class="subtitle">Accedi per gestire ed elaborare le tue richieste</p>
+
+    <!-- Indicatore di stato / caricamento -->
+    <div class="status-container">
+      <div id="statusSpinner" class="spinner"></div>
+      <p id="status">Verifica della sessione...</p>
+    </div>
+
+    <!-- Gruppo Pulsanti -->
+    <div class="btn-group">
+      <!-- Pulsante Microsoft con Icona SVG ufficiale -->
+      <button id="loginBtn" class="btn btn-microsoft" onclick="login()" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 21 21">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+        </svg>
+        Accedi con Microsoft
+      </button>
+
+      <!-- Pulsante Dev Token -->
+      <button id="fakeTokenBtn" class="btn btn-dev" onclick="loginWithFakeToken()" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+        </svg>
+        Accedi con Token Fake (Dev)
+      </button>
+    </div>
+
+    <p class="footer-text">Ambiente protetto con Azure Active Directory</p>
+  </div>
+
+  <script>
+    const msalConfig = {
+      auth: {
+        clientId: "d98e4353-8b67-43be-a85c-c1ff31c6acb1",
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: window.location.origin
+      },
+      cache: {
+        cacheLocation: "localStorage",
+        storeAuthStateInCookie: false
+      }
+    };
+
+    const armRequest = {
+      scopes: ["https://management.azure.com/user_impersonation"]
+    };
+
+    const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+    msalInstance.initialize().then(async () => {
+      try {
+        const redirectResponse = await msalInstance.handleRedirectPromise();
+
+        if (redirectResponse) {
+          msalInstance.setActiveAccount(redirectResponse.account);
+          proceedToAzure(redirectResponse.accessToken);
+          return;
+        }
+
+        const savedFakeToken = localStorage.getItem("fake_access_token");
+        if (savedFakeToken) {
+          proceedToAzure(savedFakeToken);
+          return;
+        }
+
+        const currentAccounts = msalInstance.getAllAccounts();
+        if (currentAccounts.length > 0) {
+          msalInstance.setActiveAccount(currentAccounts[0]);
+          const token = await checkAndGetToken(currentAccounts[0]);
+          if (token) {
+            proceedToAzure(token);
+            return;
+          }
+        }
+
+        showLoginButtons();
+
+      } catch (error) {
+        console.error("Errore verifica sessione:", error);
+        showLoginButtons();
+      }
+    });
+
+    function showLoginButtons() {
+      // Nasconde lo spinner di caricamento
+      document.getElementById("statusSpinner").style.display = "none";
+      document.getElementById("status").innerText = "Seleziona una modalità di accesso";
+
+      // Mostra i pulsanti
+      document.getElementById("loginBtn").style.display = "inline-flex";
+      document.getElementById("fakeTokenBtn").style.display = "inline-flex";
+    }
+
+    async function checkAndGetToken(account) {
+      try {
+        const response = await msalInstance.acquireTokenSilent({
+          ...armRequest,
+          account: account
+        });
+        return response.accessToken;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    async function login() {
+      try {
+        const response = await msalInstance.loginPopup(armRequest);
+        if (response) {
+          msalInstance.setActiveAccount(response.account);
+          proceedToAzure(response.accessToken);
+        }
+      } catch (error) {
+        console.error("Errore durante il login:", error);
+      }
+    }
+
+    function loginWithFakeToken() {
+      const fakeToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.FAKE_TOKEN_FOR_DEVELOPMENT_PURPOSES.SIGNATURE";
+      localStorage.setItem("fake_access_token", fakeToken);
+      proceedToAzure(fakeToken);
+    }
+
+    function proceedToAzure(token) {
+      document.getElementById("statusSpinner").style.display = "block";
+      document.getElementById("status").innerText = "Reindirizzamento in corso...";
+      document.getElementById("loginBtn").style.display = "none";
+      document.getElementById("fakeTokenBtn").style.display = "none";
+
+      document.cookie = `access_token=${token}; path=/; SameSite=Lax`;
+      window.location.href = "/azure";
+    }
+  </script>
+</body>
+
+</html>

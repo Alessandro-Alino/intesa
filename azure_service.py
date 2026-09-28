@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
 
-from azure.identity import ClientSecretCredential, DefaultAzureCredential
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.subscription import SubscriptionClient
@@ -18,49 +18,56 @@ from azure.mgmt.keyvault.models import (
     SkuName,
     VaultCreateOrUpdateParameters,
     VaultProperties,
-    Vault 
+    Vault,
 )
 
 load_dotenv()
 
+
+class StaticAccessTokenCredential(TokenCredential):
+    """
+    Adapter che incapsula il Bearer token ricevuto dal FE
+    e lo rende compatibile con tutti gli SDK di Azure Management.
+    """
+    def __init__(self, token: str):
+        self._token = token
+
+    def get_token(self, *scopes, **kwargs) -> AccessToken:
+        # Se non si conosce la scadenza esatta, si passa un timestamp fittizio nel futuro (es. 24h)
+        # o il valore 'exp' parsato dal payload JWT.
+        return AccessToken(self._token, expires_on=2147483647)
+
+
 class AzureKeyVaultService:
-    def __init__(self,subscription_id: str):
-        
-        self.subscription_id = subscription_id 
+    def __init__(self, subscription_id: str, access_token: str):
+        self.subscription_id = subscription_id
+        self.access_token = access_token
+
+        # Variabili di configurazione lette da .env (non servono più client_id e client_secret)
         self.tenant_id = os.getenv("AZURE_TENANT_ID")
-        self.client_id = os.getenv("AZURE_CLIENT_ID")
-        self.client_secret = os.getenv("AZURE_CLIENT_SECRET")
         self.databricks_app_id = os.getenv("DATABRICKS_APP_ID")
         self.group_id_secret = os.getenv("GROUP_SECRET_PERMISSION")
-                
+
         # ========================================
-        # Configurazione Credenziali 
+        # Configurazione Credenziali tramite Token FE
         # ========================================
-        if self.tenant_id and self.client_id and self.client_secret:
-            self.credential = ClientSecretCredential(
-                tenant_id=self.tenant_id,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-            )
-        else:
-            self.credential = DefaultAzureCredential()
-            
-        # Client per Subscription, Key Vault e ResourceGroup
+        self.credential = StaticAccessTokenCredential(self.access_token)
+
+        # Client SDK Azure
         if self.subscription_id:
-            self.sub_client = SubscriptionClient(
-                credential= self.credential
-            )
+            self.sub_client = SubscriptionClient(credential=self.credential)
             self.mgmt_client = KeyVaultManagementClient(
                 credential=self.credential,
-                subscription_id=self.subscription_id
-                )
+                subscription_id=self.subscription_id,
+            )
             self.resource_group_client = ResourceManagementClient(
-                credential = self.credential,
-                subscription_id=self.subscription_id
-                )
+                credential=self.credential,
+                subscription_id=self.subscription_id,
+            )
         else:
+            self.sub_client = None
             self.mgmt_client = None
-            self.resource_client = None
+            self.resource_group_client = None
 
     # ========================================
     # GESTIONE KEY VAULT
@@ -71,46 +78,42 @@ class AzureKeyVaultService:
         vault_name: str,
         location: str,
         acronimo: str,
-        servizio:   str
+        servizio: str,
     ) -> Vault:
         """Crea o aggiorna un'istanza di Key Vault in un Resource Group."""
-        if not self.mgmt_client:
+        if not self.mgmt_client or not self.tenant_id:
             raise ValueError("KeyVaultManagementClient o tenant_id non configurati.")
 
-        databrick_params = []
-        gruppo_permission = []
-        secrets_permissions_params = []
+        secrets_permissions_params: list[AccessPolicyEntry] = []
 
-        if servizio == 'Databricks':
+        if servizio == "Databricks":
             databrick_id = self.get_databricks_object_id()
-            databrick_params = [
-                   AccessPolicyEntry(
-                       tenant_id=self.tenant_id,
-                       object_id=databrick_id,
-                       permissions=Permissions(
-                           secrets=[SecretPermissions.get, SecretPermissions.list]
-                       ),
-                   )]
-            secrets_permissions_params.append(databrick_params)
-            #TODO DA AGGIUNGERE SEMPRE NON SOLO SOTTO DATABRICKS
-            gruppo_permission = [
-                   AccessPolicyEntry(
-                       tenant_id=self.tenant_id,
-                       object_id=self.group_id_secret,
-                       permissions=Permissions(
-                           secrets=[SecretPermissions.all]
-                       ),
-                   )]
-            secrets_permissions_params.append(gruppo_permission)
-        
-            
-        
-        try:    
+            secrets_permissions_params.append(
+                AccessPolicyEntry(
+                    tenant_id=self.tenant_id,
+                    object_id=databrick_id,
+                    permissions=Permissions(
+                        secrets=[SecretPermissions.get, SecretPermissions.list]
+                    ),
+                )
+            )
+
+        # Access policy per il gruppo di sicurezza
+        if self.group_id_secret:
+            secrets_permissions_params.append(
+                AccessPolicyEntry(
+                    tenant_id=self.tenant_id,
+                    object_id=self.group_id_secret,
+                    permissions=Permissions(secrets=[SecretPermissions.all]),
+                )
+            )
+
+        try:
             params = VaultCreateOrUpdateParameters(
                 location=location,
                 properties=VaultProperties(
                     tenant_id=self.tenant_id,
-                    sku=Sku(family="A", name=SkuName.standard.name), #TODO ricordare di cambiare in premium
+                    sku=Sku(family="A", name=SkuName.standard.name),  #TODO ricordare di cambiare in premium
                     enable_soft_delete=True,
                     soft_delete_retention_in_days=90,
                     enable_purge_protection=True,
@@ -120,9 +123,9 @@ class AzureKeyVaultService:
                         bypass="AzureServices",
                         default_action="Deny",
                     ),
-                    access_policies=secrets_permissions_params,
-                    ),
-                tags={"acronimo":acronimo}
+                    access_policies=secrets_permissions_params,  # Corretta lista piatta di AccessPolicyEntry
+                ),
+                tags={"acronimo": acronimo},
             )
             poller = self.mgmt_client.vaults.begin_create_or_update(
                 resource_group_name=resource_group_name,
@@ -131,16 +134,10 @@ class AzureKeyVaultService:
             )
             return poller.result()
         except HttpResponseError as e:
-            raise ValueError(str(e))
-        
-        
-      
-        
-        
+            raise ValueError(str(e)) from e
+
     def check_vault_exists(self, resource_group_name: str, vault_name: str) -> dict:
-        """
-        Verifica se uno specifico Key Vault esiste nel Resource Group.
-        """
+        """Verifica se uno specifico Key Vault esiste nel Resource Group."""
         if not self.mgmt_client:
             raise ValueError("KeyVaultManagementClient non configurato.")
 
@@ -154,143 +151,123 @@ class AzureKeyVaultService:
                 "location": vault.location,
                 "vault_uri": vault.properties.vault_uri if vault.properties else None,
                 "provisioning_state": vault.properties.provisioning_state if vault.properties else None,
-                "sku": vault.properties.sku.name if vault.properties and vault.properties.sku else None
+                "sku": vault.properties.sku.name if vault.properties and vault.properties.sku else None,
             }
         except ResourceNotFoundError:
             return {
                 "exists": False,
                 "vault_name": vault_name,
                 "resource_group": resource_group_name,
-                "message": f"Key Vault '{vault_name}' non trovato."
+                "message": f"Key Vault '{vault_name}' non trovato.",
             }
 
     # ========================================
     # METODI DI VERIFICA AUTOMATION
     # ========================================
     def check_connection(self) -> dict:
-        """Verifica la configurazione delle credenziali e l'accesso effettivo ad Azure tramite token."""
-        if not self.credential:
-            raise ValueError("Nessuna credenziale configurata.")
-        
-        # Test di autenticazione: richiediamo un token valido ad Azure
-        token = self.credential.get_token("https://management.azure.com/.default")
-        
-        return {
-            "status": "success",
-            "subscription_id": self.subscription_id or "Non specificata nel .env",
-            "tenant_id": self.tenant_id or "N/D",
-            "credential_type": type(self.credential).__name__,
-            "authenticated": bool(token.token),
-            "message": "Autenticazione Azure riuscita. Token di accesso ottenuto con successo!"
-        }
-        
+        """Verifica la validità dell'access token tramite il client di Subscription."""
+        try:
+            # Esegue una chiamata leggera ad ARM per testare il token
+            subscriptions = list(self.sub_client.subscriptions.list())
+            return {
+                "status": "success",
+                "subscription_id": self.subscription_id or "Non specificata",
+                "tenant_id": self.tenant_id or "N/D",
+                "authenticated": True,
+                "accessible_subscriptions_count": len(subscriptions),
+                "message": "Token valido. Accesso ad Azure ARM confermato.",
+            }
+        except Exception as e:
+            return {
+                "status": "failed",
+                "authenticated": False,
+                "error": str(e),
+                "message": "Autenticazione fallita: verificare scadenza e permessi del token.",
+            }
+
     # ========================================
     # GESTIONE SUBSCRIPTION
     # ========================================
-    def check_status_subscription(self, subscription :str) -> dict:
-        """ Verifica lo stato della Subscription mandata nella RITM"""
+    def check_status_subscription(self, subscription: str) -> dict:
+        """Verifica lo stato della Subscription."""
         try:
             sub_info = self.sub_client.subscriptions.get(subscription)
-            return sub_info
+            return sub_info.as_dict()
         except HttpResponseError as e:
             return {
                 "exists": False,
                 "subscription": subscription,
-                "error": str(e)
+                "error": str(e),
             }
-            
-    def enable_subscription(self,subscription :str):
-        """ Riattiva la subscription """
-        try:
-                token = self.credential.get_token(
-                "https://management.azure.com/.default"
-            ).token
 
-                url = (
+    def enable_subscription(self, subscription: str):
+        """Riattiva la subscription."""
+        try:
+            url = (
                 f"https://management.azure.com/subscriptions/"
                 f"{subscription}/providers/Microsoft.Subscription/"
                 f"subscriptions/{subscription}/enable"
                 f"?api-version=2021-10-01"
             )
 
-                headers = {
-                "Authorization": f"Bearer {token}",
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
                 "Content-Type": "application/json",
             }
 
-                response = requests.post(url, headers=headers)
-
-                if not response.ok:
-                    raise Exception(
+            response = requests.post(url, headers=headers)
+            if not response.ok:
+                raise Exception(
                     f"Errore durante l'abilitazione della subscription: "
                     f"{response.status_code} - {response.text}"
-                    )
+                )
 
-                return response.json() if response.content else None
-        except HttpResponseError as e:
+            return response.json() if response.content else None
+        except Exception as e:
             return {
                 "exists": False,
                 "subscription": subscription,
-                "error": str(e)
+                "error": str(e),
             }
-            
-        
+
     # ========================================
     # GESTIONE RESOURCE GROUP
     # ========================================
     def check_resource_group(self, resource_group_name: str) -> dict:
-        """
-        Verifica se il Resource Group è accessibile su Azure.
-        Interroga ARM listando le risorse o i vault nel gruppo.
-        """
+        """Verifica se il Resource Group esiste."""
         try:
             exists = self.resource_group_client.resource_groups.check_existence(resource_group_name)
             return {
                 "exists": exists,
-                "resource_group": resource_group_name
+                "resource_group": resource_group_name,
             }
         except HttpResponseError as e:
             return {
                 "exists": False,
                 "resource_group": resource_group_name,
-                "error": str(e)
+                "error": str(e),
             }
-        
-    def create_resource_group(self, resource_group_name: str,location:str) -> dict:
-        """
-        Creazione di un nuovo Resource Group.
-        """
-        try:
-            # CORREZIONE: Aggiunto parametro parameters con la location
-            rg = self.resource_group_client.resource_groups.create_or_update(
-                resource_group_name=resource_group_name,
-                parameters={"location": location}
-            )
-            return {"status": "success", "name": rg.name, "location": rg.location}
-        except HttpResponseError as e:
-            raise ValueError(f"Impossibile creare il Resource Group: {e.message}") from e
-        
 
     # ========================================
-    # GESTIONE DATABRICKS 
+    # GESTIONE DATABRICKS
     # ========================================
-    
-    def get_databricks_object_id(self):
+    def get_databricks_object_id(self) -> str:
+        """
+        Recupera l'object ID del Service Principal di Databricks tramite Microsoft Graph.
+        NOTA: L'access token passato dal FE deve avere lo scope per Microsoft Graph
+        (https://graph.microsoft.com/.default) oppure il flusso On-Behalf-Of (OBO).
+        """
         try:
-            token = self.credential.get_token("https://graph.microsoft.com/.default").token
-
             graph_url = f"https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '{self.databricks_app_id}'"
-            headers = {"Authorization": f"Bearer {token}"}
+            headers = {"Authorization": f"Bearer {self.access_token}"}
 
             response = requests.get(graph_url, headers=headers)
-            response.raise_for_status() # Lancia eccezione se lo status non è 200
-            
+            response.raise_for_status()
+
             data = response.json()
             if not data.get("value"):
                 raise ValueError("Nessun service principal trovato per l'appId fornito.")
-                
+
             return data["value"][0]["id"]
-            
         except Exception as e:
             raise ValueError(f"Errore nella chiamata a Microsoft Graph: {str(e)}") from e
-            

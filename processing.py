@@ -1,4 +1,4 @@
-from flask import jsonify
+from flask import jsonify, request
 import openpyxl
 
 from pydantic import ValidationError
@@ -26,12 +26,14 @@ def validate_file_data(file):
         valid_rows.append(rit_instance)
 
     except ValidationError as e:
+        print(e)
         invalid_rows.append(
             ValidationErrorDetail(
                 errors=e.errors()
             )
         )
     except Exception as e:
+        print(e)
         # Cattura eventuali altri errori (es. foglio mancante, file corrotto)
         return jsonify({
             "valid": False,
@@ -66,3 +68,23 @@ def error_response(message: str, status: int = 400):
         message=message
     )
     return jsonify(resp.model_dump()), status
+
+def get_token_from_request() -> str | None:
+    """Estrae l'access token da Header Authorization, Cookie o JSON body."""
+    # 1. Header Authorization
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+
+    # 2. Cookie
+    token = request.cookies.get("access_token")
+    if token:
+        return token.strip()
+
+    # 3. Fallback nel payload JSON (se passato come campo 'access_token')
+    if request.is_json:
+        data = request.get_json(silent=True)
+        if isinstance(data, dict) and "access_token" in data:
+            return data["access_token"]
+
+    return None

@@ -7,12 +7,14 @@
   <title>Carica e Valida CSV</title>
   <!-- CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <!-- MSAL library per la pulizia della cache -->
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
   <!-- JS Modules -->
   <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
 </head>
 
 <body>
-  <!-- Navbar -->
+  <!-- Navbar con pulsante Logout -->
   <div>{% include 'nav.html' %}</div>
 
   <!-- Main Content -->
@@ -21,10 +23,8 @@
 
     <!-- CSV File -->
     <div class="fieldGroup">
-      <!-- Select CSV File -->
       <label for="FileInput" id="FileInputLabel">Seleziona la RITM</label>
       <input id="FileInput" type="file" accept=".xls,.xlsx" />
-      <!-- Selected CSV File -->
       <div id="csvFileSelected">
         <p id="fileName">Nessun file selezionato</p>
         <button id="btnReset" type="button">x</button>
@@ -40,14 +40,23 @@
     <!-- Error Area -->
     <div id="errorArea"></div>
 
-    <!-- Upload Button
-    <button id="btnUpload" class="primary-btn" type="button">Avvia Test Azure</button>
-    -->
-    
     <!-- Azure Step-by-Step Check -->
     {% include 'azure_status.html' %}
   </main>
 
+  <script>
+    async function logout() {
+      // Rimozione Cookie
+      document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax";
+
+      // Rimozione Token Fake e Storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Redirect a /
+      window.location.href = "/";
+    }
+  </script>
 </body>
 
 </html>
